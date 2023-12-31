@@ -1,0 +1,20 @@
+version: "3.7"
+
+services:
+  mongodb:
+    image: mongo:6.0.9
+    restart: always
+    ports:
+      - 27017:27017
+    # environment:
+    #   MONGO_INITDB_ROOT_USERNAME: ares
+    #   MONGO_INITDB_ROOT_PASSWORD: 7142
+  postgres:
+    image: postgres:15.5-bullseye
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: 7142
+
+
