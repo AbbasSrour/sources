@@ -1,20 +1,30 @@
-version: "3.7"
-
 services:
   mongodb:
     image: mongo:6.0.9
     restart: always
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     ports:
       - 27017:27017
-    # environment:
-    #   MONGO_INITDB_ROOT_USERNAME: ares
-    #   MONGO_INITDB_ROOT_PASSWORD: 7142
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
   postgres:
     image: postgres:15.5-bullseye
     restart: always
     ports:
       - 5432:5432
     environment:
-      POSTGRES_PASSWORD: 7142
-
-
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+  redis:
+    image: redis:alpine
+    hostname: redis
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server
