@@ -1,22 +1,29 @@
+volumes:
+  pgdata: { }
+
+networks:
+  local:
+    driver: bridge
+
 services:
   mongodb:
     image: mongo:6.0.9
     restart: always
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27017" ]
     ports:
-      - 27017:27017
+      - "27017:27017"
     healthcheck:
       test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}) }" | mongosh --port 27017 --quiet
       interval: 5s
       timeout: 30s
       start_period: 0s
-      start_interval: 1s
       retries: 30
+
   postgres:
     image: postgres:15.5-bullseye
     restart: always
     ports:
-      - 5432:5432
+      - "5432:5432"
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
@@ -32,5 +39,72 @@ services:
       - '6379:6379'
     command: redis-server
 
-volumes:
-  pgdata:
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: grafana
+    volumes:
+      - ./visualization/grafana/provisioning:/etc/grafana/provisioning
+      - ./data/grafana/:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-oncall-app,grafana-llm-app
+    restart: unless-stopped
+    expose:
+      - 3000
+    networks:
+      - local
+    labels:
+      org.label-schema.group: 'observability'
+    user: root
+
+  mimir:
+    image: grafana/mimir:2.12.0
+    container_name: mimir
+    expose:
+      - 9009
+    networks:
+      - local
+    volumes:
+      - ./metrics/mimir/config:/etc/mimir/config
+      - ./data/mimir:/tmp/mimir
+    command:
+      - '-config.file=/etc/mimir/config/mimir.yml'
+      - '-validation.max-label-names-per-series=32'
+    restart: unless-stopped
+    labels:
+      org.label-schema.group: 'observability'
+    extra_hosts:
+      - "host.docker.internal: 172.17.0.1"
+
+  # tplink_exporter:
+  #   container_name: tplink_exporter
+  #   restart: unless-stopped
+  #   cpu_count: 1
+  #   mem_limit: 16m
+  #   build:
+  #     context: ../Projects/tplink_exporter
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "9300:9300"
+  #   volumes:
+  #     - "../Projects/tplink_exporter/known_macs:/etc/known_macs"
+
+  papercut:
+    image: changemakerstudiosus/papercut-smtp:latest
+    container_name: papercut_smtp
+    ports:
+      - "8080:80"
+      - "25:25"
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080"
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: open-webui
+    networks:
+      - local 
